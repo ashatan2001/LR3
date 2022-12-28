@@ -1,4 +1,4 @@
-﻿#include <windows.h>
+#include <windows.h>
 #include <iostream>
 #include <iomanip>
 
@@ -7,29 +7,30 @@ using namespace std;
 const long BLOCK_SIZE = 307160;
 const long N = 100000000;
 
-double totalPi = 0;
+double totalPi;
 DWORD nThreads = 0;
+DWORD offset = 0;
 HANDLE* arrThreads;
 CRITICAL_SECTION criticalSection;
 
 
 DWORD WINAPI startAddr(LPVOID param) {
-	long startBlock = *(long*)param;
-	long curBlock = startBlock;
+	int* startBlock = (int*)param;
 	double x, pi;
 
-	for (int j = 1; curBlock < N; ++j) {
+	for (int j = 1; *startBlock < N; ++j) {
 		pi = 0;
 		x = 0;
-		for (int i = curBlock; (i < curBlock + BLOCK_SIZE) && (i < N); ++i) {
+		for (int i = *startBlock; (i < *startBlock + BLOCK_SIZE) && (i < N); ++i) {
 			x = (i + 0.5) * (1.0 / N);
 			pi += (4.0 / (1.0 + x * x)) * (1.0 / N);
 		}
 
 		EnterCriticalSection(&criticalSection);
 
+		*startBlock = offset;
+		offset += BLOCK_SIZE;
 		totalPi += pi;
-		curBlock = nThreads * BLOCK_SIZE * j + startBlock;
 
 		LeaveCriticalSection(&criticalSection);
 	}
@@ -38,9 +39,11 @@ DWORD WINAPI startAddr(LPVOID param) {
 }
 
 void winAPI() {
+	InitializeCriticalSection(&criticalSection);
+
 	arrThreads = new HANDLE[nThreads];
 
-	InitializeCriticalSection(&criticalSection);
+	offset = BLOCK_SIZE * nThreads;
 
 	for (int i = 0; i < nThreads; ++i)
 		arrThreads[i] = CreateThread(NULL, 0, startAddr,
@@ -83,4 +86,3 @@ int main() {
 
 	return 0;
 }
-
